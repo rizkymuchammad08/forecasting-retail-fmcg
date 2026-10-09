@@ -1,0 +1,129 @@
+{% if banner %}
+> {{ banner }}
+
+{% endif %}
+# Demand forecast report
+
+## Verdict
+
+{% if decision.verdict == "use_baseline" %}
+**Action:** keep using the baseline forecast. The candidate model did not earn a switch. This is a legitimate result, not a failure of the run.
+{% elif decision.verdict == "keep_status_quo" %}
+**Action:** keep the current ordering practice. The evidence does not show a value gain that justifies a change.
+{% else %}
+**Action:** run a limited pilot with a control group before any wider rollout. Do not scale on this evidence alone.
+{% endif %}
+
+Verdict code: `{{ decision.verdict }}`
+
+Reason codes:
+{% for code in decision.reasons %}
+- `{{ code }}`: {{ reason_text[code] }}
+{% endfor %}
+
+{% if decision.headline_supported %}
+**Headline (conditional value):** at the same stockout rate the model needs {{ m.business.inventory_reduction_rel.value | pct }} less average inventory value than the baseline (interval at level {{ m.business.inventory_reduction_rel.ci_level | pct }}: {{ m.business.inventory_reduction_rel.ci_low | pct }} to {{ m.business.inventory_reduction_rel.ci_high | pct }}).
+{% else %}
+No headline claim is supported by this run.
+{% endif %}
+
+Every business figure in this report is a **{{ m.business.value_label }}**: it holds only under the cost assumptions in `config.yaml`, which are illustrative, and under the simulation rules listed in Limitations.
+
+## Accuracy
+
+Primary metric: `{{ m.accuracy.primary_metric }}` (lower is better). Test split, {{ m.test.n_obs | count }} origin rows from {{ m.test.n_series | count }} series.
+
+| Model | Test score |
+|---|---|
+| Baseline (`{{ m.accuracy.baseline_name }}`) | {{ m.accuracy.baseline | ratio }} |
+| Candidate (`{{ m.accuracy.candidate_name }}`) | {{ m.accuracy.candidate | ratio }} |
+
+Cross-validation score per fold (training origins only):
+
+| Fold | Train rows | Valid rows | Baseline | Candidate |
+|---|---|---|---|---|
+{% for f in m.accuracy.cv_folds %}
+| {{ f.fold }} | {{ f.n_train | count }} | {{ f.n_valid | count }} | {{ f.baseline | ratio }} | {{ f.candidate | ratio }} |
+{% endfor %}
+| Mean | | | {{ m.accuracy.cv_mean_baseline | ratio }} | {{ m.accuracy.cv_mean_candidate | ratio }} |
+
+Selection result in CV: `{{ m.accuracy.selection_verdict }}`.
+
+Difference on the test split (candidate minus baseline): {{ m.accuracy.delta_primary | ratio }}, interval at level {{ m.accuracy.ci_level | pct }}: {{ m.accuracy.delta_ci_low | ratio }} to {{ m.accuracy.delta_ci_high | ratio }}.
+{% if m.accuracy.delta_primary < 0 %}
+A negative difference means the candidate has the lower error.
+{% else %}
+The candidate does not have the lower error on the test split.
+{% endif %}
+
+## Calibration
+
+Coverage of each forecast quantile on {{ m.calibration.n | count }} test rows. Tolerance for the coverage error: {{ m.calibration.tolerance | ratio }}. A negative error means the quantile is too low.
+
+| Tau | Coverage | Error | Within tolerance | Pinball loss |
+|---|---|---|---|---|
+{% for r in m.calibration.rows %}
+| {{ r.tau | ratio }} | {{ r.coverage | ratio }} | {{ r.coverage_error | ratio }} | {{ "yes" if r.within_tolerance else "no" }} | {{ r.pinball_loss | ratio }} |
+{% endfor %}
+
+Largest absolute coverage error: {{ m.calibration.max_abs_coverage_error | ratio }}. With few test rows a miss at one level can be sampling noise alone.
+
+## Stockout vs working capital
+
+![Stockout rate vs average inventory value]({{ chart_name }})
+
+Service target (tau*): {{ m.business.tau_star | ratio }}, from an underage cost of {{ m.business.c_under | ratio }} and an overage cost of {{ m.business.c_over | ratio }} per unit. Each origin row is one independent cycle over {{ m.business.horizon_periods | count }} periods.
+
+| Policy | Stockout rate | Average inventory value | DIO (periods) | Net value |
+|---|---|---|---|---|
+| Status quo (not at equal service) | {{ m.business.policies.status_quo.stockout_rate | pct }} | {{ m.business.policies.status_quo.avg_inventory_value | money }} | {{ m.business.policies.status_quo.dio_periods | units }} | {{ m.business.policies.status_quo.net_value | money }} |
+| Baseline newsvendor | {{ m.business.policies.baseline_newsvendor.stockout_rate | pct }} | {{ m.business.policies.baseline_newsvendor.avg_inventory_value | money }} | {{ m.business.policies.baseline_newsvendor.dio_periods | units }} | {{ m.business.policies.baseline_newsvendor.net_value | money }} |
+| Model newsvendor | {{ m.business.policies.model_newsvendor.stockout_rate | pct }} | {{ m.business.policies.model_newsvendor.avg_inventory_value | money }} | {{ m.business.policies.model_newsvendor.dio_periods | units }} | {{ m.business.policies.model_newsvendor.net_value | money }} |
+
+The rows of this table are not a comparison and carry no claim. A gap between the baseline and model rows is not a result at equal service; a claim is made only in the equal-service block below ({{ m.business.value_label }}).
+
+The status quo is the baseline point forecast plus a fixed buffer of {{ m.business.status_quo_buffer | pct }}. It runs at a different stockout rate from the newsvendor policies, so its inventory is not comparable one to one.
+
+**Equal service ({{ m.business.value_label }}).**
+{% if selected_is_baseline %}
+> **Not an empirical result.** {{ selected_is_baseline_note }}
+
+{% endif %}
+{% if m.business.equal_service.available %}
+At the model's stockout rate of {{ m.business.equal_service.target_stockout_rate | pct }}, the model needs an average inventory value of {{ m.business.equal_service.inventory_model | money }} and the baseline needs {{ m.business.equal_service.inventory_baseline | money }}. The difference is {{ m.business.equal_service.inventory_reduction_abs | signed }} (relative: {{ m.business.equal_service.inventory_reduction_rel | pct }}); a positive value means the model needs less. Bootstrap interval at level {{ m.business.inventory_reduction_rel.ci_level | pct }}: {{ m.business.inventory_reduction_rel.ci_low | pct }} to {{ m.business.inventory_reduction_rel.ci_high | pct }}, from {{ m.business.inventory_reduction_rel.n_boot_available | count }} of {{ m.business.inventory_reduction_rel.n_boot | count }} resamples.
+{% else %}
+Not available: {{ m.business.equal_service.reason }}. No inventory claim is made.
+{% endif %}
+
+**Net value against the status quo.** Total over the test origins: {{ m.business.net_value_delta.model_vs_status_quo.value | signed }}, interval at level {{ m.business.net_value_delta.model_vs_status_quo.ci_level | pct }}: {{ m.business.net_value_delta.model_vs_status_quo.ci_low | signed }} to {{ m.business.net_value_delta.model_vs_status_quo.ci_high | signed }}. This is a {{ m.business.value_label }} and is not a forecast of profit.
+
+## Flags
+
+{% if decision.flags %}
+{% for code in decision.flags %}
+- `{{ code }}`: {{ flag_text[code] }}
+{% endfor %}
+{% else %}
+No flags were raised.
+{% endif %}
+
+Flags are warnings. They never change the verdict.
+
+## What NOT to conclude
+
+- Sales are not true demand. Lost sales on stocked-out days are not observed.
+- Do not extrapolate to new SKUs, large promotions or seasons that are not in the data.
+- A total WAPE is not sufficient evidence on its own. Check the per-series and per-fold results.
+- Do not change large safety stocks without a pilot.
+
+## Limitations
+
+{% for key, text in limitations.items() %}
+- {{ text }}
+{% endfor %}
+
+---
+
+- Source hash: `{{ source_hash }}`
+- Data hash: `{{ m.data_hash }}`
+- Model hash: `{{ m.model_hash }}`

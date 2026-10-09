@@ -1,0 +1,19 @@
+# Generated output
+data/
+artifacts/
+reports/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+
+# Packaging
+*.egg-info/
+build/
+dist/

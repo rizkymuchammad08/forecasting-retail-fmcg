@@ -1,0 +1,30 @@
+# All values are illustrative assumptions, not measurements.
+business:
+  avg_unit_price: 10.0
+  avg_unit_cost: 6.0
+  holding_cost_rate_annual: 0.20   # share of unit cost per year
+  salvage_ratio: 0.10              # salvage value / unit cost
+  overstock_writeoff_share: 0.05   # share of leftover units written off
+  lead_time_periods: 7
+  review_period_periods: 7
+  periods_per_year: 365
+  status_quo_buffer: 0.10          # relative buffer on the baseline point forecast
+params:
+  seed: 42
+  horizon_periods: 14              # must equal lead_time_periods + review_period_periods
+  season_length_periods: 7
+  origin_step_periods: 7
+  data:
+    path: data/raw/panel.csv
+    max_gap_periods: 3
+    synthetic: {n_series: 40, n_periods: 300}
+  schema: {required_columns: [sku_id, location_id, series_id, period_start, demand]}
+  domain: {min_history_periods: 56, inactive_periods: 28}
+  leakage: {max_abs_corr: 0.98}
+  split: {train: 0.6, calib: 0.2, test: 0.2, purge_gap_periods: 14}
+  cv: {n_folds: 3, min_train_origins: 8}
+  models: {baseline: seasonal_naive, candidate: gbm_lag, primary_metric: wape}
+  calibration: {scale_floor: 1.0}
+  tradeoff: {taus: [0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.975, 0.99]}
+  evaluation: {ci_level: 0.95, n_boot: 1000, calibration_tolerance: 0.03}
+  report: {min_test_series: 30, min_test_obs: 500}

@@ -1,0 +1,9 @@
+numpy
+pandas
+pyyaml
+scikit-learn
+scipy
+matplotlib
+jinja2
+pytest
+ruff

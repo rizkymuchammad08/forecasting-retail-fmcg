@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "forecasting-retail-fmcg"
+version = "0.1.0"
+description = "Demand forecasting and newsvendor order-up-to policy for retail / FMCG (SKU x location x day)."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Muchammad Rizky" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyyaml",
+    "scikit-learn",
+    "scipy",
+    "matplotlib",
+    "jinja2",
+    "joblib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+fcst-pipeline = "fcst.pipeline:main"
+fcst-data = "fcst.data:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Lets `pytest` find the `fcst` package without exporting PYTHONPATH by hand.
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
